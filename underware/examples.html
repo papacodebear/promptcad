@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Underware Examples</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -170,7 +171,7 @@
   <h1>Underware Examples</h1>
   <p>Every shape the Underware skill can render, with defaults applied. Click one to render it live in 3D and download the STL. See <a href="./SKILL.md">SKILL.md</a> for the full parameter list each shape accepts.</p>
   <label id="prompt-toggle">
-    <input type="checkbox" id="prompt-toggle-input">
+    <input type="checkbox" id="prompt-toggle-input" checked>
     <span class="toggle-track"><span class="toggle-thumb"></span></span>
     Show Prompts
   </label>
@@ -215,7 +216,9 @@
     grid.appendChild(a);
   }
 
-  document.getElementById('prompt-toggle-input').addEventListener('change', (e) => {
+  const promptToggle = document.getElementById('prompt-toggle-input');
+  grid.classList.toggle('list-view', promptToggle.checked);
+  promptToggle.addEventListener('change', (e) => {
     grid.classList.toggle('list-view', e.target.checked);
   });
 </script>
