@@ -1,7 +1,5 @@
 /openscad.wasm
   Cache-Control: public, max-age=31536000, immutable
-/openscad.wasm.js
-  Cache-Control: public, max-age=31536000, immutable
 /openscad.fonts.js
   Cache-Control: public, max-age=31536000, immutable
 /bosl2-bundle.js

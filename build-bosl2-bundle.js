@@ -5,9 +5,7 @@ const BOSL2_DIR = './BOSL2';
 const PREFIX    = '/home/web_user/.local/share/OpenSCAD/libraries/BOSL2';
 const bundle    = {};
 
-// BOSL2's own .scad files only ever `include`/`use` sibling top-level .scad
-// files (never anything from examples/, tests/, images/, etc.), so only those
-// need to land in the WASM virtual FS.
+// Only top-level .scad files are ever include/use'd; skip examples/, tests/, images/, etc.
 for (const entry of readdirSync(BOSL2_DIR, { withFileTypes: true })) {
   if (entry.isFile() && entry.name.endsWith('.scad')) {
     bundle[`${PREFIX}/${entry.name}`] = readFileSync(`${BOSL2_DIR}/${entry.name}`, 'utf8');

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-VER=2022.03.20
-BASE="https://github.com/openscad/openscad-wasm/releases/download/$VER"
-for f in openscad.js openscad.wasm.js openscad.wasm openscad.fonts.js; do
-  curl -fsSL "$BASE/$f" -o "underware/$f"
-done
+WASM_BUILD_URL="https://files.openscad.org/playground/OpenSCAD-2025.03.25.wasm24456-WebAssembly-web.zip"
+curl -fsSL "$WASM_BUILD_URL" -o /tmp/openscad-wasm.zip
+unzip -o /tmp/openscad-wasm.zip -d underware
+
+# Engine-independent FS writer; still sourced from the older release that shipped it.
+curl -fsSL "https://github.com/openscad/openscad-wasm/releases/download/2022.03.20/openscad.fonts.js" -o underware/openscad.fonts.js
+
 node build-bosl2-bundle.js

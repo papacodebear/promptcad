@@ -740,12 +740,23 @@ function ensureDir(FS, dir) {
 }
 
 // ── Render queue ───────────────────────────────────────────────────────────
-async function renderItem(wasmReady, item) {
+// A fresh instance per item: this build aborts if callMain() runs twice on one instance.
+async function createInstance() {
+  const inst = await OpenSCAD({ noInitialRun: true });
+  addFonts(inst);
+  for (const [path, content] of Object.entries(BOSL2_BUNDLE)) {
+    ensureDir(inst.FS, path.slice(0, path.lastIndexOf('/')));
+    inst.FS.writeFile(path, content);
+  }
+  return inst;
+}
+
+async function renderItem(item) {
   item.status = 'rendering';
   if (state.indexOf(item) === activeIndex) selectItem(activeIndex);
   renderSidebar();
 
-  const inst = await wasmReady;
+  const inst = await createInstance();
   const scad = await fetch(SCAD_BASE + item.component).then(r => {
     if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${item.component}`);
     return r.text();
@@ -757,27 +768,18 @@ async function renderItem(wasmReady, item) {
     ['-D', typeof v === 'string' ? `${k}="${v}"` : `${k}=${v}`]
   );
 
-  inst.callMain(['/input.scad', '-o', '/output.stl', '--enable=manifold', ...dFlags]);
+  inst.callMain(['/input.scad', '-o', '/output.stl', '--backend=manifold', '--export-format=binstl', ...dFlags]);
   item.stlBytes = inst.FS.readFile('/output.stl');
   item.status   = 'ready';
 }
 
 if (state.length > 0) {
-  const wasmReady = OpenSCAD().then(inst => {
-    addFonts(inst);
-    for (const [path, content] of Object.entries(BOSL2_BUNDLE)) {
-      ensureDir(inst.FS, path.slice(0, path.lastIndexOf('/')));
-      inst.FS.writeFile(path, content);
-    }
-    return inst;
-  });
-
   (async () => {
     document.getElementById('overlay-text').textContent = 'Rendering…';
 
     for (let i = 0; i < state.length; i++) {
       try {
-        await renderItem(wasmReady, state[i]);
+        await renderItem(state[i]);
       } catch (e) {
         state[i].status = 'error';
         console.error('Render failed:', state[i].component, e);
