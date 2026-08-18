@@ -5,7 +5,7 @@ description: Generate 3D-printable STL files for the Underware 2.0 cable managem
 
 # Underware STL Generator
 
-Generate 3D-printable STL files for the Underware 2.0 cable management and organization system by describing what you need in natural language. The skill maps your description to OpenSCAD parameters, builds a render URL, navigates to the static site, and hands off the 3D preview to the user for download.
+Generate 3D-printable STL files for the Underware 2.0 cable management and organization system by describing what you need in natural language. The skill maps your description to OpenSCAD parameters and builds a render URL — open it in a browser to preview the part in 3D and download the STL.
 
 ## Trigger phrases
 
@@ -20,9 +20,9 @@ Underware is a parametric OpenSCAD cable management and organization system buil
 **Channels** — cable routing tubes with a removable top. Mount to a surface via their base.  
 **Accessories** — holders, hooks, and connectors that mount directly to Multiboard/openGrid slots.
 
-Rendering happens in the user's browser via OpenSCAD WASM. The agent's job is to map natural language → parameters → URL, then navigate to it and confirm the preview is ready.
+The agent's job is to map natural language → parameters → a render URL. Rendering itself happens client-side, in the browser, via OpenSCAD WASM.
 
-**Render site:** `https://your-site.pages.dev` *(replace with deployed URL)*  
+**Render site:** `https://promptcad.papacodebear.workers.dev`  
 **Source repo:** `https://github.com/AndyLevesque/QuackWorks/tree/main/Underware`  
 **License:** CC-BY-NC-SA 4.0 (non-commercial)
 
@@ -187,11 +187,15 @@ If type is ambiguous, ask.
 
 **Keyholes** (`Underware_keyholes.scad`):
 - `Mounting_Surface` — `"Multiboard"` `"openGrid - Lite"` `"openGrid - Full"`, default `"Multiboard"`
-- `Show_Part` — `"Snap Keyhole"` or `"Keyhole Test"`, default `"Snap Keyhole"`
+- `Show_Part` — `"Snap Keyhole"` or `"Keyhole Test"`, default `"Snap Keyhole"` — **known bug: `"Snap Keyhole"` crashes the current renderer build. Use `"Keyhole Test"` (a fit-check jig, not the final mount) and tell the user real keyhole rendering is temporarily broken.**
 - `Snap_Connector_Height` — float mm, default 3
 - `distanceBetweenKeyholeEntranceCenters` — float mm, default 144
 - `keyholeEntraceDiameter` — float mm, default 7.5
 - `keyholeSlotDiameter` — float mm, default 4.1
+
+**Connectors** (`Underware_Connectors.scad`):
+- `Show_Part` — `"Snap Connector"` or `"Bolts"`, default `"Snap Connector"` — **known bug: `"Snap Connector"` crashes the current renderer build. Use `"Bolts"` until fixed.**
+- `Bolt_Selection` — `"All"` `"Small MB Screw"` `"Small MB Screw split"` `"Small MB T Screw"` `"Small MB T Screw tool"`, default `"Small MB T Screw"`
 
 **Mounting method sub-parameters** (channels only):
 
@@ -208,7 +212,7 @@ If type is ambiguous, ask.
 
 ## Step 3 — Confirm before generating
 
-Summarize what you understood and confirm with the user before navigating. For multi-part runs, list all pieces.
+Summarize what you understood and confirm with the user before building the URL. For multi-part runs, list all pieces.
 
 > I'll render a **2-unit I-Channel**, 24mm tall, 5 units long, snap connector, base + top. Sound right?
 
@@ -243,62 +247,22 @@ Rules:
 URL-encode the JSON and append to the site base URL as the hash fragment:
 
 ```
-https://your-site.pages.dev/#<url-encoded JSON>
+https://promptcad.papacodebear.workers.dev/#<url-encoded JSON>
 ```
 
 Example final URL for a single item:
 
 ```
-https://your-site.pages.dev/#%5B%7B%22component%22%3A%22Underware_I_Channel.scad%22%2C%22params%22%3A%7B%22Channel_Width_in_Units%22%3A2%2C%22Channel_Internal_Height%22%3A24%2C%22Channel_Length_Units%22%3A5%2C%22Mounting_Method%22%3A%22Threaded+Snap+Connector%22%2C%22Base_Top_or_Both%22%3A%22Both%22%7D%2C%22label%22%3A%222U+I-Channel%22%7D%5D
+https://promptcad.papacodebear.workers.dev/#%5B%7B%22component%22%3A%22Underware_I_Channel.scad%22%2C%22params%22%3A%7B%22Channel_Width_in_Units%22%3A2%2C%22Channel_Internal_Height%22%3A24%2C%22Channel_Length_Units%22%3A5%2C%22Mounting_Method%22%3A%22Threaded+Snap+Connector%22%2C%22Base_Top_or_Both%22%3A%22Both%22%7D%2C%22label%22%3A%222U+I-Channel%22%7D%5D
 ```
 
----
-
-## Step 5 — Navigate and wait
-
-Navigate to the URL using whatever browser tool is available.
-
-**Claude (Claude-in-Chrome):**
-```
-navigate({ url: "<render URL>" })
-```
-
-**ChatGPT / other agents:**  
-Use the browsing tool to open the URL.
-
-Then poll the `#agent-status` element until it leaves `"loading"`:
-
-```js
-document.getElementById('agent-status').textContent
-// → "loading"   still rendering
-// → "ready"     all items rendered successfully
-// → "partial"   some rendered, some failed
-// → "error"     all failed
-```
-
-Wait up to 120 seconds. WASM cold-load takes 2–5s; each render adds a few seconds per item. On return visits both timings improve significantly due to browser caching.
-
----
-
-## Step 6 — Hand off to user
-
-Once status is `"ready"` or `"partial"`, report:
-
-> Your model is ready to preview in the browser. Rotate and inspect it, then click **Download STL** when you're happy with it.
-
-Include relevant print tips:
-
-- **Channel base:** Support-free, clip side up. PETG or PLA.
-- **Channel top:** Print flat, no supports.
-- **Item holders / hooks:** Print with back face down, no supports needed.
-- **Snap connectors / keyholes:** Print upright for strongest threads.
-- **Profile v2.5:** Clips from below — useful when top access is restricted.
+Give this URL to the user. If you have browser access, feel free to open it yourself to confirm it renders.
 
 ---
 
 ## Multi-part cable runs
 
-Pass all parts as a single JSON array. The site renders them sequentially and shows them in a sidebar. The user can inspect each before downloading individually.
+Pass all parts as a single JSON array — one URL renders and shows them all in a sidebar.
 
 ```json
 [
@@ -320,19 +284,15 @@ Pass all parts as a single JSON array. The site renders them sequentially and sh
 ]
 ```
 
-One URL, one browser navigation, all renders in a single session.
-
 ---
 
-## Error handling
+## Print tips
 
-| Symptom | Fix |
-|---|---|
-| `#agent-status` stays `"loading"` > 120s | Check browser console for WASM or fetch errors; confirm the site URL is correct |
-| `#agent-status` is `"error"` | A param value may be out of range or the SCAD filename is wrong — check against the file list and param tables |
-| `"partial"` — some items failed | Inspect the sidebar for red-dot items; re-render just the failed items with a corrected URL |
-| Blank viewer / no preview | Three.js may not have loaded — check browser console; try refreshing the page |
-| Item Holder renders incorrectly | Trailing-comma WASM compatibility — verify you're targeting the latest WASM build; if older build, note that `Underware_Item_Holder.scad` and `Underware_Item_Holder_Clamshell_Style.scad` may need the trailing-comma patch applied server-side |
+- **Channel base:** Support-free, clip side up. PETG or PLA.
+- **Channel top:** Print flat, no supports.
+- **Item holders / hooks:** Print with back face down, no supports needed.
+- **Snap connectors / keyholes:** Print upright for strongest threads.
+- **Profile v2.5:** Clips from below — useful when top access is restricted.
 
 ---
 
