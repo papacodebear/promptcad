@@ -207,10 +207,39 @@
     #download-skill { background: #4a9eff; color: #fff; }
     #download-skill:hover { background: #3a8eed; }
 
-    #try-example, #view-skill-source, #see-examples { background: #2e2e2e; color: #c8c8c8; }
-    #try-example:hover, #view-skill-source:hover, #see-examples:hover { background: #383838; }
+    #view-skill-source, #see-examples { background: #2e2e2e; color: #c8c8c8; }
+    #view-skill-source:hover, #see-examples:hover { background: #383838; }
 
     /* ── Details panel ────────────────────────────────────── */
+    #nav-icons {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+
+    .nav-icon-btn {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(18, 18, 18, 0.9);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid #2e2e2e;
+      border-radius: 9px;
+      color: #aaa;
+      text-decoration: none;
+      transition: color 0.12s, border-color 0.12s;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    .nav-icon-btn:hover { color: #e8e8e8; border-color: #4a9eff; }
+    .nav-icon-btn svg { width: 18px; height: 18px; }
+
     #details-panel {
       position: absolute;
       top: 12px;
@@ -369,10 +398,25 @@
         <div id="empty-state-actions">
           <a id="download-skill" class="empty-state-link" href="./SKILL.md" download>Download SKILL.md</a>
           <a id="view-skill-source" class="empty-state-link" href="https://github.com/papacodebear/promptcad/blob/main/underware/SKILL.md" target="_blank" rel="noopener">View on GitHub</a>
-          <a id="see-examples" class="empty-state-link" href="./examples.html">See all shapes</a>
-          <a id="try-example" class="empty-state-link" href="#">Try an example</a>
+          <a id="see-examples" class="empty-state-link" href="./examples.html">See Examples</a>
         </div>
       </div>
+    </div>
+
+    <div id="nav-icons">
+      <a class="nav-icon-btn" href="./index.html" title="Home" aria-label="Home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 11.5 L12 4 L21 11.5"/>
+          <path d="M5.5 10 V20 H18.5 V10"/>
+        </svg>
+      </a>
+      <a class="nav-icon-btn" href="./examples.html" title="Examples" aria-label="Examples">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3 L20 9 L4 9 Z"/>
+          <rect x="3" y="14" width="7" height="7"/>
+          <circle cx="17.5" cy="17.5" r="4"/>
+        </svg>
+      </a>
     </div>
 
     <!-- Floating details panel -->
@@ -716,8 +760,6 @@ function selectItem(i) {
   }
 }
 
-const EXAMPLE_HASH = '%5B%7B%22component%22%3A%20%22Underware_I_Channel.scad%22%2C%20%22params%22%3A%20%7B%22Channel_Width_in_Units%22%3A%202%2C%20%22Channel_Internal_Height%22%3A%2024%2C%20%22Channel_Length_Units%22%3A%205%2C%20%22Mounting_Method%22%3A%20%22Threaded%20Snap%20Connector%22%2C%20%22Base_Top_or_Both%22%3A%20%22Both%22%7D%2C%20%22label%22%3A%20%222U%20I-Channel%22%7D%5D';
-
 if (state.length > 0) {
   selectItem(0);
 } else {
@@ -725,12 +767,8 @@ if (state.length > 0) {
   document.getElementById('empty-state').classList.add('visible');
   document.getElementById('details-panel').style.display = 'none';
   document.getElementById('bottom-bar').style.display = 'none';
+  document.getElementById('nav-icons').style.display = 'none';
   document.getElementById('agent-status').textContent = 'no-params';
-  document.getElementById('try-example').addEventListener('click', (e) => {
-    e.preventDefault();
-    location.hash = EXAMPLE_HASH;
-    location.reload();
-  });
 }
 
 // ── WASM init ──────────────────────────────────────────────────────────────

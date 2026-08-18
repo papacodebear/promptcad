@@ -14,10 +14,71 @@
       padding: 32px 24px 64px;
     }
 
-    header { max-width: 1100px; margin: 0 auto 32px; }
+    #home-btn {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(18, 18, 18, 0.9);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid #2e2e2e;
+      border-radius: 9px;
+      color: #aaa;
+      text-decoration: none;
+      transition: color 0.12s, border-color 0.12s;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      z-index: 10;
+    }
+
+    #home-btn:hover { color: #e8e8e8; border-color: #4a9eff; }
+    #home-btn svg { width: 18px; height: 18px; }
+
+    header { max-width: 1100px; margin: 0 auto 32px; padding-left: 52px; }
     h1 { font-size: 22px; margin-bottom: 8px; }
     header p { font-size: 14px; color: #999; line-height: 1.5; max-width: 640px; }
     header a { color: #4a9eff; }
+
+    #prompt-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      font-size: 13px;
+      color: #c8c8c8;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #prompt-toggle input { display: none; }
+
+    .toggle-track {
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+      background: #2e2e2e;
+      border-radius: 10px;
+      position: relative;
+      transition: background 0.15s;
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: #999;
+      border-radius: 50%;
+      transition: transform 0.15s, background 0.15s;
+    }
+
+    #prompt-toggle input:checked + .toggle-track { background: #2a5a8a; }
+    #prompt-toggle input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); background: #4a9eff; }
 
     #grid {
       max-width: 1100px;
@@ -25,6 +86,12 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 16px;
+    }
+
+    #grid.list-view {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
 
     .card {
@@ -53,13 +120,60 @@
       font-size: 13px;
       font-weight: 500;
     }
+
+    .card-prompt { display: none; }
+
+    #grid.list-view .card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 16px;
+    }
+
+    #grid.list-view .card-prompt {
+      display: block;
+      flex: 1;
+      font-size: 14px;
+      color: #c8c8c8;
+      font-style: italic;
+    }
+
+    #grid.list-view .card-visual {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      width: 240px;
+    }
+
+    #grid.list-view .card-visual img {
+      width: 72px;
+      height: 54px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      aspect-ratio: 4 / 3;
+    }
+
+    #grid.list-view .card-label { padding: 0; }
   </style>
 </head>
 <body>
 
+<a id="home-btn" href="./index.html" title="Home" aria-label="Home">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 11.5 L12 4 L21 11.5"/>
+    <path d="M5.5 10 V20 H18.5 V10"/>
+  </svg>
+</a>
+
 <header>
   <h1>Underware Examples</h1>
   <p>Every shape the Underware skill can render, with defaults applied. Click one to render it live in 3D and download the STL. See <a href="./SKILL.md">SKILL.md</a> for the full parameter list each shape accepts.</p>
+  <label id="prompt-toggle">
+    <input type="checkbox" id="prompt-toggle-input">
+    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+    Show Prompts
+  </label>
 </header>
 
 <div id="grid"></div>
@@ -67,24 +181,24 @@
 <script>
   // One representative item per shape the skill can render (see SKILL.md).
   const EXAMPLES = [
-    { slug: 'i-channel', component: 'Underware_I_Channel.scad', params: {}, label: 'I-Channel (Straight)' },
-    { slug: 'l-channel', component: 'Underware_L_Channel.scad', params: {}, label: 'L-Channel (Corner)' },
-    { slug: 't-channel', component: 'Underware_T_Channel.scad', params: {}, label: 'T-Channel (Junction)' },
-    { slug: 'x-channel', component: 'Underware_X_Channel.scad', params: {}, label: 'X-Channel (Cross)' },
-    { slug: 'branch-split-channel', component: 'Underware_Branch_Split_Channel.scad', params: {}, label: 'Branch Split Channel' },
-    { slug: 'y-channel', component: 'Underware_Y_Channel.scad', params: {}, label: 'Y-Channel (Split)' },
-    { slug: 's-channel', component: 'Underware_S_Channel.scad', params: {}, label: 'S-Channel (Diagonal)' },
-    { slug: 'diagonal-channel', component: 'Underware_Diagonal_Channel.scad', params: {}, label: 'Diagonal Channel' },
-    { slug: 'c-channel', component: 'Underware_C_Channel.scad', params: {}, label: 'C-Channel (Curved)' },
-    { slug: 'mitre-channel', component: 'Underware_Mitre_Channel.scad', params: {}, label: 'Mitre Channel' },
-    { slug: 'height-change-channel', component: 'Underware_Height_Change_Channel.scad', params: {}, label: 'Height Change Channel' },
-    { slug: 'transition-channel', component: 'Underware_Transition_Channel.scad', params: {}, label: 'Transition Channel' },
-    { slug: 'item-holder', component: 'Underware_Item_Holder.scad', params: {}, label: 'Item Holder' },
-    { slug: 'clamshell-holder', component: 'Underware_Item_Holder_Clamshell_Style.scad', params: {}, label: 'Clamshell Holder' },
-    { slug: 'hook', component: 'Underware_Hooks.scad', params: {}, label: 'Hook' },
-    { slug: 'cable-loop-holder', component: 'Underware_Cable_Loop_holder.scad', params: {}, label: 'Cable Loop Holder' },
-    { slug: 'keyhole-test-jig', component: 'Underware_keyholes.scad', params: { Show_Part: 'Keyhole Test' }, label: 'Keyhole Test Jig' },
-    { slug: 'bolt-connector', component: 'Underware_Connectors.scad', params: { Show_Part: 'Bolts' }, label: 'Bolt Connector' },
+    { slug: 'i-channel', component: 'Underware_I_Channel.scad', params: {}, label: 'I-Channel (Straight)', prompt: 'I need a straight cable channel.' },
+    { slug: 'l-channel', component: 'Underware_L_Channel.scad', params: {}, label: 'L-Channel (Corner)', prompt: 'A 90 degree corner channel for turning a cable run.' },
+    { slug: 't-channel', component: 'Underware_T_Channel.scad', params: {}, label: 'T-Channel (Junction)', prompt: 'A T junction channel that splits a cable run three ways.' },
+    { slug: 'x-channel', component: 'Underware_X_Channel.scad', params: {}, label: 'X-Channel (Cross)', prompt: 'A four-way cross channel where two cable runs intersect.' },
+    { slug: 'branch-split-channel', component: 'Underware_Branch_Split_Channel.scad', params: {}, label: 'Branch Split Channel', prompt: 'A channel that branches off to the side at an angle.' },
+    { slug: 'y-channel', component: 'Underware_Y_Channel.scad', params: {}, label: 'Y-Channel (Split)', prompt: 'A Y-shaped channel that splits into two paths.' },
+    { slug: 's-channel', component: 'Underware_S_Channel.scad', params: {}, label: 'S-Channel (Diagonal)', prompt: 'An S-curve channel to offset a cable run sideways without turning.' },
+    { slug: 'diagonal-channel', component: 'Underware_Diagonal_Channel.scad', params: {}, label: 'Diagonal Channel', prompt: 'A diagonal channel that also turns 90 degrees at the end.' },
+    { slug: 'c-channel', component: 'Underware_C_Channel.scad', params: {}, label: 'C-Channel (Curved)', prompt: 'A curved channel for a smooth arc around a corner.' },
+    { slug: 'mitre-channel', component: 'Underware_Mitre_Channel.scad', params: {}, label: 'Mitre Channel', prompt: 'A mitred 45 degree corner channel.' },
+    { slug: 'height-change-channel', component: 'Underware_Height_Change_Channel.scad', params: {}, label: 'Height Change Channel', prompt: 'A channel that steps up in internal height partway through.' },
+    { slug: 'transition-channel', component: 'Underware_Transition_Channel.scad', params: {}, label: 'Transition Channel', prompt: 'A channel that transitions from one width to a narrower width.' },
+    { slug: 'item-holder', component: 'Underware_Item_Holder.scad', params: {}, label: 'Item Holder', prompt: 'An open-front basket to hold a small power brick.' },
+    { slug: 'clamshell-holder', component: 'Underware_Item_Holder_Clamshell_Style.scad', params: {}, label: 'Clamshell Holder', prompt: 'An enclosed clamshell holder that grips an item on both sides.' },
+    { slug: 'hook', component: 'Underware_Hooks.scad', params: {}, label: 'Hook', prompt: 'A wall hook for hanging a headset.' },
+    { slug: 'cable-loop-holder', component: 'Underware_Cable_Loop_holder.scad', params: {}, label: 'Cable Loop Holder', prompt: 'A post to wrap and store a coiled cable.' },
+    { slug: 'keyhole-test-jig', component: 'Underware_keyholes.scad', params: { Show_Part: 'Keyhole Test' }, label: 'Keyhole Test Jig', prompt: 'A test jig to check the fit of a keyhole mount before printing the real part.' },
+    { slug: 'bolt-connector', component: 'Underware_Connectors.scad', params: { Show_Part: 'Bolts' }, label: 'Bolt Connector', prompt: 'A bolt-mounted connector for attaching channels to a board.' },
   ];
 
   const grid = document.getElementById('grid');
@@ -93,10 +207,17 @@
     const a = document.createElement('a');
     a.className = 'card';
     a.href = `./index.html#${hash}`;
-    a.innerHTML = `<img src="./examples/${ex.slug}.png" alt="${ex.label}" loading="lazy">
-      <div class="card-label">${ex.label}</div>`;
+    a.innerHTML = `<div class="card-prompt">&ldquo;${ex.prompt}&rdquo;</div>
+      <div class="card-visual">
+        <img src="./examples/${ex.slug}.png" alt="${ex.label}" loading="lazy">
+        <div class="card-label">${ex.label}</div>
+      </div>`;
     grid.appendChild(a);
   }
+
+  document.getElementById('prompt-toggle-input').addEventListener('change', (e) => {
+    grid.classList.toggle('list-view', e.target.checked);
+  });
 </script>
 </body>
 </html>

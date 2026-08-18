@@ -2,3 +2,4 @@ openscad.js
 openscad.wasm
 openscad.fonts.js
 bosl2-bundle.js
+.well-known/agent-skills/index.json

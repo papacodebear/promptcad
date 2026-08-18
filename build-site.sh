@@ -8,3 +8,4 @@ unzip -o /tmp/openscad-wasm.zip -d underware
 curl -fsSL "https://github.com/openscad/openscad-wasm/releases/download/2022.03.20/openscad.fonts.js" -o underware/openscad.fonts.js
 
 node build-bosl2-bundle.js
+node build-agent-skills-index.js

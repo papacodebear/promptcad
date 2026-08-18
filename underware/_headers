@@ -4,3 +4,11 @@
   Cache-Control: public, max-age=31536000, immutable
 /bosl2-bundle.js
   Cache-Control: public, max-age=31536000, immutable
+/agents.txt
+  Content-Type: text/plain; charset=utf-8
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+/.well-known/agent-skills/index.json
+  Content-Type: application/json
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600

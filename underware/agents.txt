@@ -1,0 +1,4 @@
+# agents.txt
+# Standard: https://agents-txt.com
+
+Skills: https://promptcad.papacodebear.workers.dev/SKILL.md

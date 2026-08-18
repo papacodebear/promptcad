@@ -1,3 +1,8 @@
+---
+name: underware-stl-generator
+description: Generate 3D-printable STL files for the Underware 2.0 cable management and organization system from a natural-language description of the part.
+---
+
 # Underware STL Generator
 
 Generate 3D-printable STL files for the Underware 2.0 cable management and organization system by describing what you need in natural language. The skill maps your description to OpenSCAD parameters, builds a render URL, navigates to the static site, and hands off the 3D preview to the user for download.
