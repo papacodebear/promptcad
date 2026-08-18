@@ -4,7 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Underware Generator</title>
-  <link rel="preload" href="./openscad.wasm" as="fetch" crossorigin>
+  <script>
+    // Only preload the 14MB WASM binary if a part is actually being rendered.
+    if (location.hash.length > 1) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.href = './openscad.wasm';
+      link.as = 'fetch';
+      link.crossOrigin = 'anonymous';
+      document.head.appendChild(link);
+    }
+  </script>
   <script type="importmap">
   {
     "imports": {
@@ -148,6 +158,57 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     #overlay-text { font-size: 14px; color: #666; }
+
+    /* Shown instead of the overlay when no part is specified in the URL */
+    #empty-state {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a1a;
+      padding: 40px;
+      overflow-y: auto;
+    }
+
+    #empty-state.visible { display: flex; }
+
+    #empty-state-inner { max-width: 480px; }
+
+    #empty-state h1 { font-size: 20px; margin-bottom: 12px; }
+
+    #empty-state p {
+      font-size: 14px;
+      color: #999;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    #empty-state ol {
+      font-size: 14px;
+      color: #c8c8c8;
+      line-height: 1.7;
+      margin: 0 0 24px 20px;
+    }
+
+    #empty-state-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .empty-state-link {
+      display: inline-block;
+      padding: 9px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    #download-skill { background: #4a9eff; color: #fff; }
+    #download-skill:hover { background: #3a8eed; }
+
+    #try-example, #view-skill-source { background: #2e2e2e; color: #c8c8c8; }
+    #try-example:hover, #view-skill-source:hover { background: #383838; }
 
     /* ── Details panel ────────────────────────────────────── */
     #details-panel {
@@ -293,6 +354,24 @@
     <div id="overlay">
       <div class="spinner"></div>
       <div id="overlay-text">Initializing OpenSCAD…</div>
+    </div>
+
+    <div id="empty-state">
+      <div id="empty-state-inner">
+        <h1>PromptCAD — Underware Generator</h1>
+        <p>This page renders 3D-printable Underware 2.0 parts from a URL. It's meant to be driven by an AI agent, not opened directly — give the agent the skill below and describe the part you want.</p>
+        <ol>
+          <li>Download the skill and give it to your agent (Claude, ChatGPT, or anything with browser access).</li>
+          <li>Describe the part in plain language — e.g. "a 2-unit cable channel, 24mm tall, snap connector."</li>
+          <li>The agent encodes the part as a URL and navigates here for you.</li>
+          <li>Preview it in 3D, then download the STL.</li>
+        </ol>
+        <div id="empty-state-actions">
+          <a id="download-skill" class="empty-state-link" href="./SKILL.md" download>Download SKILL.md</a>
+          <a id="view-skill-source" class="empty-state-link" href="https://github.com/papacodebear/promptcad/blob/main/underware/SKILL.md" target="_blank" rel="noopener">View on GitHub</a>
+          <a id="try-example" class="empty-state-link" href="#">Try an example</a>
+        </div>
+      </div>
     </div>
 
     <!-- Floating details panel -->
@@ -636,7 +715,22 @@ function selectItem(i) {
   }
 }
 
-if (state.length > 0) selectItem(0);
+const EXAMPLE_HASH = '%5B%7B%22component%22%3A%20%22Underware_I_Channel.scad%22%2C%20%22params%22%3A%20%7B%22Channel_Width_in_Units%22%3A%202%2C%20%22Channel_Internal_Height%22%3A%2024%2C%20%22Channel_Length_Units%22%3A%205%2C%20%22Mounting_Method%22%3A%20%22Threaded%20Snap%20Connector%22%2C%20%22Base_Top_or_Both%22%3A%20%22Both%22%7D%2C%20%22label%22%3A%20%222U%20I-Channel%22%7D%5D';
+
+if (state.length > 0) {
+  selectItem(0);
+} else {
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('empty-state').classList.add('visible');
+  document.getElementById('details-panel').style.display = 'none';
+  document.getElementById('bottom-bar').style.display = 'none';
+  document.getElementById('agent-status').textContent = 'no-params';
+  document.getElementById('try-example').addEventListener('click', (e) => {
+    e.preventDefault();
+    location.hash = EXAMPLE_HASH;
+    location.reload();
+  });
+}
 
 // ── WASM init ──────────────────────────────────────────────────────────────
 function ensureDir(FS, dir) {
@@ -645,17 +739,8 @@ function ensureDir(FS, dir) {
   try { FS.mkdir(dir); } catch (e) { if (e.errno !== 20 /* EEXIST */) throw e; }
 }
 
-const wasmReady = OpenSCAD().then(inst => {
-  addFonts(inst);
-  for (const [path, content] of Object.entries(BOSL2_BUNDLE)) {
-    ensureDir(inst.FS, path.slice(0, path.lastIndexOf('/')));
-    inst.FS.writeFile(path, content);
-  }
-  return inst;
-});
-
 // ── Render queue ───────────────────────────────────────────────────────────
-async function renderItem(item) {
+async function renderItem(wasmReady, item) {
   item.status = 'rendering';
   if (state.indexOf(item) === activeIndex) selectItem(activeIndex);
   renderSidebar();
@@ -677,25 +762,36 @@ async function renderItem(item) {
   item.status   = 'ready';
 }
 
-(async () => {
-  document.getElementById('overlay-text').textContent = 'Rendering…';
-
-  for (let i = 0; i < state.length; i++) {
-    try {
-      await renderItem(state[i]);
-    } catch (e) {
-      state[i].status = 'error';
-      console.error('Render failed:', state[i].component, e);
+if (state.length > 0) {
+  const wasmReady = OpenSCAD().then(inst => {
+    addFonts(inst);
+    for (const [path, content] of Object.entries(BOSL2_BUNDLE)) {
+      ensureDir(inst.FS, path.slice(0, path.lastIndexOf('/')));
+      inst.FS.writeFile(path, content);
     }
-    renderSidebar();
-    if (i === 0 || i === activeIndex) selectItem(Math.min(i, activeIndex));
-  }
+    return inst;
+  });
 
-  const readyCount = state.filter(s => s.status === 'ready').length;
-  document.getElementById('agent-status').textContent =
-    readyCount === state.length ? 'ready' :
-    readyCount > 0              ? 'partial' : 'error';
-})();
+  (async () => {
+    document.getElementById('overlay-text').textContent = 'Rendering…';
+
+    for (let i = 0; i < state.length; i++) {
+      try {
+        await renderItem(wasmReady, state[i]);
+      } catch (e) {
+        state[i].status = 'error';
+        console.error('Render failed:', state[i].component, e);
+      }
+      renderSidebar();
+      if (i === 0 || i === activeIndex) selectItem(Math.min(i, activeIndex));
+    }
+
+    const readyCount = state.filter(s => s.status === 'ready').length;
+    document.getElementById('agent-status').textContent =
+      readyCount === state.length ? 'ready' :
+      readyCount > 0              ? 'partial' : 'error';
+  })();
+}
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 function escHtml(str) {
