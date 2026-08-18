@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Underware Generator</title>
+  <link rel="preload" href="./openscad.wasm" as="fetch" crossorigin>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr;
+      height: 100dvh;
+    }
+
+    #app.multi {
+      grid-template-columns: 260px 1fr;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────── */
+    #sidebar {
+      display: none;
+      flex-direction: column;
+      border-right: 1px solid #2e2e2e;
+      overflow: hidden;
+    }
+
+    #app.multi #sidebar { display: flex; }
+
+    #sidebar-header {
+      padding: 14px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #666;
+      border-bottom: 1px solid #2e2e2e;
+      flex-shrink: 0;
+    }
+
+    #item-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+    }
+
+    .item-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      background: none;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      text-align: left;
+      color: #c8c8c8;
+      transition: background 0.12s;
+      margin-bottom: 2px;
+    }
+
+    .item-btn:hover { background: #242424; }
+    .item-btn.active { background: #1e2d40; color: #e8e8e8; }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: #444;
+      transition: background 0.2s;
+    }
+
+    .status-dot.rendering {
+      background: #e8952a;
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .status-dot.ready  { background: #4caf50; }
+    .status-dot.error  { background: #e05555; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .item-info  { flex: 1; min-width: 0; }
+    .item-label { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-sub   { font-size: 11px; color: #555; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Viewer ───────────────────────────────────────────── */
+    #viewer {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      min-width: 0;
+    }
+
+    #canvas {
+      flex: 1;
+      display: block;
+      width: 100%;
+      min-height: 0;
+    }
+
+    /* Overlay shown while loading / rendering */
+    #overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      bottom: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      background: #1a1a1a;
+    }
+
+    #overlay.hidden { display: none; }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #2e2e2e;
+      border-top-color: #4a9eff;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #overlay-text { font-size: 14px; color: #666; }
+
+    /* ── Details panel ────────────────────────────────────── */
+    #details-panel {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(18, 18, 18, 0.9);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid #2e2e2e;
+      border-radius: 9px;
+      overflow: hidden;
+      min-width: 220px;
+      max-width: 300px;
+      z-index: 10;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    #details-toggle {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 12px;
+      background: none;
+      border: none;
+      color: #aaa;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      transition: color 0.12s;
+      gap: 8px;
+    }
+
+    #details-toggle:hover { color: #ddd; }
+
+    #details-chevron {
+      font-size: 10px;
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    #details-panel.open #details-chevron { transform: rotate(90deg); }
+
+    #details-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.22s ease;
+    }
+
+    #details-panel.open #details-body {
+      max-height: 480px;
+    }
+
+    #details-inner {
+      padding: 2px 12px 10px;
+      border-top: 1px solid #2a2a2a;
+    }
+
+    .detail-section {
+      margin-top: 8px;
+    }
+
+    .detail-section-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #555;
+      margin-bottom: 4px;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      padding: 2px 0;
+    }
+
+    .detail-key {
+      font-size: 12px;
+      color: #666;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .detail-val {
+      font-size: 12px;
+      color: #ccc;
+      text-align: right;
+      word-break: break-word;
+    }
+
+    /* ── Bottom bar ───────────────────────────────────────── */
+    #bottom-bar {
+      height: 56px;
+      flex-shrink: 0;
+      padding: 0 16px;
+      background: #1e1e1e;
+      border-top: 1px solid #2e2e2e;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #current-label { flex: 1; font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #status-text   { font-size: 12px; color: #666; flex-shrink: 0; }
+
+    #download-btn {
+      flex-shrink: 0;
+      padding: 7px 18px;
+      background: #4a9eff;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.12s;
+    }
+
+    #download-btn:disabled { background: #2e2e2e; color: #555; cursor: not-allowed; }
+    #download-btn:not(:disabled):hover { background: #3a8eed; }
+
+    /* Agent-readable status */
+    #agent-status { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-header">Models &mdash; <span id="model-count">0</span></div>
+    <div id="item-list"></div>
+  </div>
+
+  <div id="viewer">
+    <canvas id="canvas"></canvas>
+
+    <div id="overlay">
+      <div class="spinner"></div>
+      <div id="overlay-text">Initializing OpenSCAD…</div>
+    </div>
+
+    <!-- Floating details panel -->
+    <div id="details-panel">
+      <button id="details-toggle" aria-expanded="false">
+        <span id="details-title">Details</span>
+        <span id="details-chevron">▸</span>
+      </button>
+      <div id="details-body" role="region">
+        <div id="details-inner"></div>
+      </div>
+    </div>
+
+    <div id="bottom-bar">
+      <div id="current-label">—</div>
+      <div id="status-text"></div>
+      <button id="download-btn" disabled>Download STL</button>
+    </div>
+  </div>
+</div>
+
+<!-- Agent-readable: "loading" | "ready" | "partial" | "error" -->
+<div id="agent-status">loading</div>
+
+<script src="./bosl2-bundle.js"></script>
+<script type="module">
+import * as THREE            from 'three';
+import { STLLoader }         from 'three/addons/loaders/STLLoader.js';
+import { OrbitControls }     from 'three/addons/controls/OrbitControls.js';
+import OpenSCAD              from './openscad.js';
+import { addFonts }          from './openscad.fonts.js';
+
+const SCAD_BASE = 'https://raw.githubusercontent.com/AndyLevesque/QuackWorks/refs/heads/main/Underware/';
+
+// ── Param → human-readable label/formatter ────────────────────────────────
+const PARAM_META = {
+  Base_Top_or_Both:            { label: 'Parts',           fmt: v => ({ Both: 'Base + Top', Base: 'Base only', Top: 'Top only' }[v] ?? v), section: 'General' },
+  Channel_Width_in_Units:      { label: 'Width',           fmt: v => `${v}u (${v * 25}mm)`,  section: 'Dimensions' },
+  Channel_Internal_Height:     { label: 'Internal height', fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Channel_Length_Units:        { label: 'Length',          fmt: v => `${v}u (${v * 25}mm)`,  section: 'Dimensions' },
+  Channel_Width_in_Units_1:    { label: 'Width (start)',   fmt: v => `${v}u (${v * 25}mm)`,  section: 'Dimensions' },
+  Channel_Width_in_Units_2:    { label: 'Width (end)',     fmt: v => `${v}u (${v * 25}mm)`,  section: 'Dimensions' },
+  Channel_Internal_Height_1:   { label: 'Height (start)',  fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Channel_Internal_Height_2:   { label: 'Height (end)',    fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Rise_Distance:               { label: 'Rise distance',   fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Rise_Offset:                 { label: 'Rise offset',     fmt: v => `${v}mm`,               section: 'Dimensions' },
+  L_Channel_Length_in_Units_X_Axis: { label: 'Length X',  fmt: v => `${v}u`,                section: 'Dimensions' },
+  L_Channel_Length_in_Units_Y_Axis: { label: 'Length Y',  fmt: v => `${v}u`,                section: 'Dimensions' },
+  Curve_Radius_in_Units:       { label: 'Curve radius',   fmt: v => `${v}u`,                section: 'Dimensions' },
+  Units_Over:                  { label: 'Units over',      fmt: v => `${v}u`,                section: 'Dimensions' },
+  Units_Up:                    { label: 'Units up',        fmt: v => `${v}u`,                section: 'Dimensions' },
+  Y_Units_Over:                { label: 'Spread (horiz)',  fmt: v => `${v}u`,                section: 'Dimensions' },
+  Y_Units_Up:                  { label: 'Spread (vert)',   fmt: v => `${v}u`,                section: 'Dimensions' },
+  Y_Straight_Distance:         { label: 'Lead-in',         fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Length_of_Longest_Edge_1:    { label: 'Edge 1',          fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Length_of_Longest_Edge_2:    { label: 'Edge 2',          fmt: v => `${v}mm`,               section: 'Dimensions' },
+
+  Mounting_Method:             { label: 'Mount',           fmt: v => v,                      section: 'Mounting' },
+  Mounting_Style:              { label: 'Mount style',     fmt: v => v,                      section: 'Mounting' },
+  Mounting_Surface:            { label: 'Surface',         fmt: v => v,                      section: 'Mounting' },
+  Connection_Type:             { label: 'Connection',      fmt: v => v,                      section: 'Mounting' },
+  Profile_Type:                { label: 'Profile',         fmt: v => v,                      section: 'Mounting' },
+  Y_Output_Direction:          { label: 'Output direction',fmt: v => v,                      section: 'Mounting' },
+  Output_Direction:            { label: 'Output direction',fmt: v => v,                      section: 'Mounting' },
+
+  Internal_Width:              { label: 'Internal width',  fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Internal_Depth:              { label: 'Internal depth',  fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Internal_Height:             { label: 'Internal height', fmt: v => `${v}mm`,               section: 'Dimensions' },
+  wallThickness:               { label: 'Wall thickness',  fmt: v => `${v}mm`,               section: 'Dimensions' },
+  baseThickness:               { label: 'Base thickness',  fmt: v => `${v}mm`,               section: 'Dimensions' },
+  edgeRounding:                { label: 'Edge rounding',   fmt: v => `${v}mm`,               section: 'Dimensions' },
+
+  Width:                       { label: 'Width',           fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Depth:                       { label: 'Depth',           fmt: v => `${v}mm`,               section: 'Dimensions' },
+  Height:                      { label: 'Height',          fmt: v => `${v}mm`,               section: 'Dimensions' },
+  hookHeight:                  { label: 'Hook height',     fmt: v => `${v}mm`,               section: 'Dimensions' },
+  hookRound:                   { label: 'Hook tip radius', fmt: v => `${v}mm`,               section: 'Dimensions' },
+  holderHeight:                { label: 'Holder height',   fmt: v => `${v}mm`,               section: 'Dimensions' },
+  holderDiameter:              { label: 'Loop diameter',   fmt: v => `${v}mm`,               section: 'Dimensions' },
+  postDiameter:                { label: 'Post diameter',   fmt: v => `${v}mm`,               section: 'Dimensions' },
+  extraHoldingEdgeLength:      { label: 'Holding lip',     fmt: v => `${v}mm`,               section: 'Dimensions' },
+  total_item_width:            { label: 'Item width',      fmt: v => `${v}mm`,               section: 'Dimensions' },
+  item_slop:                   { label: 'Clearance',       fmt: v => `${v}mm`,               section: 'Dimensions' },
+
+  frontCutout:                 { label: 'Front open',      fmt: v => v ? 'Yes' : 'No',       section: 'Cutouts' },
+  bottomCutout:                { label: 'Bottom open',     fmt: v => v ? 'Yes' : 'No',       section: 'Cutouts' },
+  rightCutout:                 { label: 'Right open',      fmt: v => v ? 'Yes' : 'No',       section: 'Cutouts' },
+  leftCutout:                  { label: 'Left open',       fmt: v => v ? 'Yes' : 'No',       section: 'Cutouts' },
+  cordCutout:                  { label: 'Cord cutout',     fmt: v => v ? 'Yes' : 'No',       section: 'Cutouts' },
+  cordCutoutDiameter:          { label: 'Cord cutout ⌀',  fmt: v => `${v}mm`,               section: 'Cutouts' },
+  Number_of_Cord_Cutouts:      { label: 'Cord cutouts',    fmt: v => `${v}`,                 section: 'Cutouts' },
+  Cord_Side_Cutouts:           { label: 'Cutout side',     fmt: v => v,                      section: 'Cutouts' },
+  Cord_Cutout_Width:           { label: 'Cutout width',    fmt: v => `${v}mm`,               section: 'Cutouts' },
+
+  Add_Label:                   { label: 'Label',           fmt: v => v ? 'Yes' : 'No',       section: 'Label' },
+  Text:                        { label: 'Label text',      fmt: v => `"${v}"`,               section: 'Label' },
+  Text_size:                   { label: 'Text size',       fmt: v => `${v}mm`,               section: 'Label' },
+
+  nbSecondaryHooks:            { label: 'Extra hooks',     fmt: v => `${v}`,                 section: 'Options' },
+  secondaryHookHeight:         { label: 'Extra hook height',fmt: v => `${v}mm`,              section: 'Options' },
+  onSided:                     { label: 'Single-sided',    fmt: v => v ? 'Yes' : 'No',       section: 'Options' },
+  ClamShell_Mode:              { label: 'Clamshell',       fmt: v => v ? 'Yes' : 'No',       section: 'Options' },
+  Corner_Style:                { label: 'Corner style',    fmt: v => v,                      section: 'Options' },
+  Straight_Distance:           { label: 'Straight section',fmt: v => `${v}mm`,               section: 'Options' },
+
+  Flex_Compensation_Scaling:   { label: 'Flex scaling',    fmt: v => `${v}`,                 section: 'Tuning' },
+  Additional_Holding_Strength: { label: 'Hold strength',   fmt: v => `${v}`,                 section: 'Tuning' },
+  Magnet_Diameter:             { label: 'Magnet ⌀',        fmt: v => `${v}mm`,               section: 'Mounting' },
+  Magnet_Thickness:            { label: 'Magnet thickness',fmt: v => `${v}mm`,               section: 'Mounting' },
+};
+
+const SECTION_ORDER = ['General', 'Dimensions', 'Mounting', 'Cutouts', 'Label', 'Options', 'Tuning'];
+
+function buildDetailsHTML(item) {
+  const componentName = item.component
+    .replace(/^Underware_/, '')
+    .replace(/\.scad$/, '')
+    .replace(/_/g, ' ');
+
+  // Group params by section
+  const sections = {};
+  for (const [k, v] of Object.entries(item.params)) {
+    const meta = PARAM_META[k];
+    const section = meta?.section ?? 'Options';
+    if (!sections[section]) sections[section] = [];
+    const label = meta?.label ?? k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const val   = meta ? meta.fmt(v) : (typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v));
+    sections[section].push([label, val]);
+  }
+
+  let html = `
+    <div class="detail-section">
+      <div class="detail-section-title">Component</div>
+      <div class="detail-row">
+        <span class="detail-val" style="text-align:left; color:#aaa;">${escHtml(componentName)}</span>
+      </div>
+    </div>`;
+
+  for (const sectionName of SECTION_ORDER) {
+    const rows = sections[sectionName];
+    if (!rows?.length) continue;
+    html += `<div class="detail-section"><div class="detail-section-title">${escHtml(sectionName)}</div>`;
+    for (const [k, v] of rows) {
+      html += `
+        <div class="detail-row">
+          <span class="detail-key">${escHtml(k)}</span>
+          <span class="detail-val">${escHtml(v)}</span>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Any leftover sections not in SECTION_ORDER
+  for (const [sectionName, rows] of Object.entries(sections)) {
+    if (SECTION_ORDER.includes(sectionName) || !rows?.length) continue;
+    html += `<div class="detail-section"><div class="detail-section-title">${escHtml(sectionName)}</div>`;
+    for (const [k, v] of rows) {
+      html += `
+        <div class="detail-row">
+          <span class="detail-key">${escHtml(k)}</span>
+          <span class="detail-val">${escHtml(v)}</span>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+
+  return html;
+}
+
+// ── Parse URL hash → items ─────────────────────────────────────────────────
+let items = [];
+try {
+  const raw = decodeURIComponent(location.hash.slice(1));
+  const parsed = JSON.parse(raw);
+  items = Array.isArray(parsed) ? parsed : [parsed];
+} catch {
+  // handled below
+}
+
+const state = items.map(item => ({
+  component: item.component,
+  params:    item.params   || {},
+  label:     item.label    || item.component.replace(/^Underware_/, '').replace(/\.scad$/, '').replace(/_/g, ' '),
+  status:    'pending',
+  stlBytes:  null,
+}));
+
+// ── Layout ─────────────────────────────────────────────────────────────────
+const app = document.getElementById('app');
+if (state.length > 1) app.classList.add('multi');
+document.getElementById('model-count').textContent = state.length;
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+let activeIndex = 0;
+const itemList = document.getElementById('item-list');
+
+function renderSidebar() {
+  if (state.length < 2) return;
+  itemList.innerHTML = '';
+  state.forEach((item, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'item-btn' + (i === activeIndex ? ' active' : '');
+    btn.innerHTML = `
+      <div class="status-dot ${item.status}"></div>
+      <div class="item-info">
+        <div class="item-label">${escHtml(item.label)}</div>
+        <div class="item-sub">${escHtml(item.component)}</div>
+      </div>`;
+    btn.onclick = () => selectItem(i);
+    itemList.appendChild(btn);
+  });
+}
+
+renderSidebar();
+
+// ── Details panel toggle ───────────────────────────────────────────────────
+const detailsPanel  = document.getElementById('details-panel');
+const detailsToggle = document.getElementById('details-toggle');
+const detailsInner  = document.getElementById('details-inner');
+
+detailsToggle.addEventListener('click', () => {
+  const open = detailsPanel.classList.toggle('open');
+  detailsToggle.setAttribute('aria-expanded', String(open));
+});
+
+function updateDetails(item) {
+  document.getElementById('details-title').textContent = item.label;
+  detailsInner.innerHTML = buildDetailsHTML(item);
+}
+
+// ── Three.js ───────────────────────────────────────────────────────────────
+const canvas   = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x1a1a1a);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100000);
+camera.position.set(150, 120, 250);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const key  = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(2, 3, 4);   scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(-3, 1, -2); scene.add(fill);
+
+let currentMesh = null;
+
+function resizeRenderer() {
+  const viewer = document.getElementById('viewer');
+  const bar    = document.getElementById('bottom-bar');
+  const w = viewer.clientWidth;
+  const h = viewer.clientHeight - bar.offsetHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resizeRenderer);
+resizeRenderer();
+
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+
+// ── STL preview ────────────────────────────────────────────────────────────
+const stlLoader = new STLLoader();
+
+function showSTL(bytes) {
+  if (currentMesh) {
+    scene.remove(currentMesh);
+    currentMesh.geometry.dispose();
+    currentMesh.material.dispose();
+    currentMesh = null;
+  }
+
+  const geometry = stlLoader.parse(bytes.buffer);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshPhongMaterial({ color: 0x4a9eff, specular: 0x1a3a60, shininess: 40 });
+  currentMesh = new THREE.Mesh(geometry, material);
+  scene.add(currentMesh);
+
+  const box    = new THREE.Box3().setFromObject(currentMesh);
+  const center = box.getCenter(new THREE.Vector3());
+  const size   = box.getSize(new THREE.Vector3()).length();
+  currentMesh.position.sub(center);
+  camera.position.set(size * 0.8, size * 0.6, size * 1.2);
+  controls.target.set(0, 0, 0);
+  controls.update();
+
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+// ── Download ───────────────────────────────────────────────────────────────
+const downloadBtn = document.getElementById('download-btn');
+
+function setupDownload(item) {
+  downloadBtn.disabled = false;
+  downloadBtn.onclick = () => {
+    const blob = new Blob([item.stlBytes], { type: 'model/stl' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), {
+      href:     url,
+      download: item.component.replace('.scad', '.stl'),
+    });
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+}
+
+// ── Select item ────────────────────────────────────────────────────────────
+function selectItem(i) {
+  activeIndex = i;
+  const item = state[i];
+
+  document.getElementById('current-label').textContent = item.label;
+  document.getElementById('status-text').textContent = {
+    pending:   'Queued',
+    rendering: 'Rendering…',
+    ready:     '',
+    error:     'Failed',
+  }[item.status] ?? '';
+
+  renderSidebar();
+  updateDetails(item);
+
+  const overlay = document.getElementById('overlay');
+  if (item.status === 'ready') {
+    showSTL(item.stlBytes);
+    setupDownload(item);
+  } else {
+    downloadBtn.disabled = true;
+    overlay.classList.remove('hidden');
+    document.getElementById('overlay-text').textContent =
+      item.status === 'rendering' ? 'Rendering…' :
+      item.status === 'error'     ? 'Render failed.' : 'Queued…';
+  }
+}
+
+if (state.length > 0) selectItem(0);
+
+// ── WASM init ──────────────────────────────────────────────────────────────
+function ensureDir(FS, dir) {
+  if (dir === '' || dir === '/') return;
+  ensureDir(FS, dir.slice(0, dir.lastIndexOf('/')));
+  try { FS.mkdir(dir); } catch (e) { if (e.errno !== 20 /* EEXIST */) throw e; }
+}
+
+const wasmReady = OpenSCAD().then(inst => {
+  addFonts(inst);
+  for (const [path, content] of Object.entries(BOSL2_BUNDLE)) {
+    ensureDir(inst.FS, path.slice(0, path.lastIndexOf('/')));
+    inst.FS.writeFile(path, content);
+  }
+  return inst;
+});
+
+// ── Render queue ───────────────────────────────────────────────────────────
+async function renderItem(item) {
+  item.status = 'rendering';
+  if (state.indexOf(item) === activeIndex) selectItem(activeIndex);
+  renderSidebar();
+
+  const inst = await wasmReady;
+  const scad = await fetch(SCAD_BASE + item.component).then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${item.component}`);
+    return r.text();
+  });
+
+  inst.FS.writeFile('/input.scad', scad);
+
+  const dFlags = Object.entries(item.params).flatMap(([k, v]) =>
+    ['-D', typeof v === 'string' ? `${k}="${v}"` : `${k}=${v}`]
+  );
+
+  inst.callMain(['/input.scad', '-o', '/output.stl', '--enable=manifold', ...dFlags]);
+  item.stlBytes = inst.FS.readFile('/output.stl');
+  item.status   = 'ready';
+}
+
+(async () => {
+  document.getElementById('overlay-text').textContent = 'Rendering…';
+
+  for (let i = 0; i < state.length; i++) {
+    try {
+      await renderItem(state[i]);
+    } catch (e) {
+      state[i].status = 'error';
+      console.error('Render failed:', state[i].component, e);
+    }
+    renderSidebar();
+    if (i === 0 || i === activeIndex) selectItem(Math.min(i, activeIndex));
+  }
+
+  const readyCount = state.filter(s => s.status === 'ready').length;
+  document.getElementById('agent-status').textContent =
+    readyCount === state.length ? 'ready' :
+    readyCount > 0              ? 'partial' : 'error';
+})();
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
