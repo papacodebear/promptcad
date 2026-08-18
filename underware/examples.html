@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Underware Examples</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      padding: 32px 24px 64px;
+    }
+
+    header { max-width: 1100px; margin: 0 auto 32px; }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    header p { font-size: 14px; color: #999; line-height: 1.5; max-width: 640px; }
+    header a { color: #4a9eff; }
+
+    #grid {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      display: block;
+      background: #1e1e1e;
+      border: 1px solid #2e2e2e;
+      border-radius: 10px;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.12s, transform 0.12s;
+    }
+
+    .card:hover { border-color: #4a9eff; transform: translateY(-2px); }
+
+    .card img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      background: #1a1a1a;
+    }
+
+    .card-label {
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Underware Examples</h1>
+  <p>Every shape the Underware skill can render, with defaults applied. Click one to render it live in 3D and download the STL. See <a href="./SKILL.md">SKILL.md</a> for the full parameter list each shape accepts.</p>
+</header>
+
+<div id="grid"></div>
+
+<script>
+  // One representative item per shape the skill can render (see SKILL.md).
+  const EXAMPLES = [
+    { slug: 'i-channel', component: 'Underware_I_Channel.scad', params: {}, label: 'I-Channel (Straight)' },
+    { slug: 'l-channel', component: 'Underware_L_Channel.scad', params: {}, label: 'L-Channel (Corner)' },
+    { slug: 't-channel', component: 'Underware_T_Channel.scad', params: {}, label: 'T-Channel (Junction)' },
+    { slug: 'x-channel', component: 'Underware_X_Channel.scad', params: {}, label: 'X-Channel (Cross)' },
+    { slug: 'branch-split-channel', component: 'Underware_Branch_Split_Channel.scad', params: {}, label: 'Branch Split Channel' },
+    { slug: 'y-channel', component: 'Underware_Y_Channel.scad', params: {}, label: 'Y-Channel (Split)' },
+    { slug: 's-channel', component: 'Underware_S_Channel.scad', params: {}, label: 'S-Channel (Diagonal)' },
+    { slug: 'diagonal-channel', component: 'Underware_Diagonal_Channel.scad', params: {}, label: 'Diagonal Channel' },
+    { slug: 'c-channel', component: 'Underware_C_Channel.scad', params: {}, label: 'C-Channel (Curved)' },
+    { slug: 'mitre-channel', component: 'Underware_Mitre_Channel.scad', params: {}, label: 'Mitre Channel' },
+    { slug: 'height-change-channel', component: 'Underware_Height_Change_Channel.scad', params: {}, label: 'Height Change Channel' },
+    { slug: 'transition-channel', component: 'Underware_Transition_Channel.scad', params: {}, label: 'Transition Channel' },
+    { slug: 'item-holder', component: 'Underware_Item_Holder.scad', params: {}, label: 'Item Holder' },
+    { slug: 'clamshell-holder', component: 'Underware_Item_Holder_Clamshell_Style.scad', params: {}, label: 'Clamshell Holder' },
+    { slug: 'hook', component: 'Underware_Hooks.scad', params: {}, label: 'Hook' },
+    { slug: 'cable-loop-holder', component: 'Underware_Cable_Loop_holder.scad', params: {}, label: 'Cable Loop Holder' },
+    { slug: 'keyhole-test-jig', component: 'Underware_keyholes.scad', params: { Show_Part: 'Keyhole Test' }, label: 'Keyhole Test Jig' },
+    { slug: 'bolt-connector', component: 'Underware_Connectors.scad', params: { Show_Part: 'Bolts' }, label: 'Bolt Connector' },
+  ];
+
+  const grid = document.getElementById('grid');
+  for (const ex of EXAMPLES) {
+    const hash = encodeURIComponent(JSON.stringify([{ component: ex.component, params: ex.params, label: ex.label }]));
+    const a = document.createElement('a');
+    a.className = 'card';
+    a.href = `./index.html#${hash}`;
+    a.innerHTML = `<img src="./examples/${ex.slug}.png" alt="${ex.label}" loading="lazy">
+      <div class="card-label">${ex.label}</div>`;
+    grid.appendChild(a);
+  }
+</script>
+</body>
+</html>
