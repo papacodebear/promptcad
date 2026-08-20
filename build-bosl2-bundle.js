@@ -12,5 +12,5 @@ for (const entry of readdirSync(BOSL2_DIR, { withFileTypes: true })) {
   }
 }
 
-writeFileSync('./underware/bosl2-bundle.js', `const BOSL2_BUNDLE = ${JSON.stringify(bundle)};`);
+writeFileSync('./underware/bosl2-bundle.js', `export const BOSL2_BUNDLE = ${JSON.stringify(bundle)};\n`);
 console.log(`Bundled ${Object.keys(bundle).length} files`);

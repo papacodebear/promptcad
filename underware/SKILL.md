@@ -187,14 +187,14 @@ If type is ambiguous, ask.
 
 **Keyholes** (`Underware_keyholes.scad`):
 - `Mounting_Surface` — `"Multiboard"` `"openGrid - Lite"` `"openGrid - Full"`, default `"Multiboard"`
-- `Show_Part` — `"Snap Keyhole"` or `"Keyhole Test"`, default `"Snap Keyhole"` — **known bug: `"Snap Keyhole"` crashes the current renderer build. Use `"Keyhole Test"` (a fit-check jig, not the final mount) and tell the user real keyhole rendering is temporarily broken.**
+- `Show_Part` — `"Snap Keyhole"` or `"Keyhole Test"`, default `"Snap Keyhole"` — **known bug: `"Snap Keyhole"` hangs the current renderer build (use the page's Cancel button to recover). Use `"Keyhole Test"` (a fit-check jig, not the final mount) and tell the user real keyhole rendering is temporarily broken.**
 - `Snap_Connector_Height` — float mm, default 3
 - `distanceBetweenKeyholeEntranceCenters` — float mm, default 144
 - `keyholeEntraceDiameter` — float mm, default 7.5
 - `keyholeSlotDiameter` — float mm, default 4.1
 
 **Connectors** (`Underware_Connectors.scad`):
-- `Show_Part` — `"Snap Connector"` or `"Bolts"`, default `"Snap Connector"` — **known bug: `"Snap Connector"` crashes the current renderer build. Use `"Bolts"` until fixed.**
+- `Show_Part` — `"Snap Connector"` or `"Bolts"`, default `"Snap Connector"` — **known bug: `"Snap Connector"` hangs the current renderer build (use the page's Cancel button to recover). Use `"Bolts"` until fixed.**
 - `Bolt_Selection` — `"All"` `"Small MB Screw"` `"Small MB Screw split"` `"Small MB T Screw"` `"Small MB T Screw tool"`, default `"Small MB T Screw"`
 
 **Mounting method sub-parameters** (channels only):

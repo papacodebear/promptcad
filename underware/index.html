@@ -160,6 +160,20 @@
 
     #overlay-text { font-size: 14px; color: #666; }
 
+    #cancel-render-btn {
+      padding: 7px 18px;
+      background: #2e2e2e;
+      color: #c8c8c8;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.12s;
+    }
+
+    #cancel-render-btn:hover { background: #3a3a3a; }
+
     /* Shown instead of the overlay when no part is specified in the URL */
     #empty-state {
       display: none;
@@ -384,6 +398,7 @@
     <div id="overlay">
       <div class="spinner"></div>
       <div id="overlay-text">Initializing OpenSCAD…</div>
+      <button id="cancel-render-btn">Cancel</button>
     </div>
 
     <div id="empty-state">
@@ -446,33 +461,49 @@ import * as THREE            from 'three';
 import { STLLoader }         from 'three/addons/loaders/STLLoader.js';
 import { OrbitControls }     from 'three/addons/controls/OrbitControls.js';
 
-// openscad.js, openscad.fonts.js and bosl2-bundle.js are multi-MB; loaded lazily so a
-// landing-page visit doesn't block on them.
-let bosl2LoadPromise = null;
-function loadBosl2Bundle() {
-  if (typeof BOSL2_BUNDLE !== 'undefined') return Promise.resolve();
-  if (!bosl2LoadPromise) {
-    bosl2LoadPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = './bosl2-bundle.js';
-      script.onload = resolve;
-      script.onerror = () => reject(new Error('Failed to load bosl2-bundle.js'));
-      document.head.appendChild(script);
-    });
+// Rendering runs in render-worker.js, created lazily on first render so a landing-page visit never loads it.
+let worker = null;
+let nextRenderId = 0;
+const pendingRenders = new Map();
+
+function getWorker() {
+  if (!worker) {
+    worker = new Worker('./render-worker.js', { type: 'module' });
+    worker.onmessage = (e) => {
+      const { id, ok, stlBytes, error } = e.data;
+      const pending = pendingRenders.get(id);
+      if (!pending) return;
+      pendingRenders.delete(id);
+      if (ok) pending.resolve(stlBytes);
+      else pending.reject(new Error(error));
+    };
+    worker.onerror = (e) => {
+      for (const p of pendingRenders.values()) p.reject(new Error(e.message || 'Worker error'));
+      pendingRenders.clear();
+    };
   }
-  return bosl2LoadPromise;
+  return worker;
 }
 
-async function loadRenderDeps() {
-  const [{ default: OpenSCAD }, { addFonts }] = await Promise.all([
-    import('./openscad.js'),
-    import('./openscad.fonts.js'),
-    loadBosl2Bundle(),
-  ]);
-  return { OpenSCAD, addFonts };
+function renderInWorker(component, params) {
+  const id = nextRenderId++;
+  return new Promise((resolve, reject) => {
+    pendingRenders.set(id, { resolve, reject });
+    getWorker().postMessage({ id, component, params });
+  });
 }
 
-const SCAD_BASE = 'https://raw.githubusercontent.com/AndyLevesque/QuackWorks/refs/heads/main/Underware/';
+// Terminates the worker outright — callMain() is synchronous, so this is the only way to stop it.
+function cancelCurrentRender() {
+  if (worker) {
+    worker.terminate();
+    worker = null;
+  }
+  for (const pending of pendingRenders.values()) pending.reject(new Error('Cancelled'));
+  pendingRenders.clear();
+}
+
+document.getElementById('cancel-render-btn').addEventListener('click', cancelCurrentRender);
 
 // ── Param → human-readable label/formatter ────────────────────────────────
 const PARAM_META = {
@@ -785,6 +816,7 @@ function selectItem(i) {
     document.getElementById('overlay-text').textContent =
       item.status === 'rendering' ? 'Rendering…' :
       item.status === 'error'     ? 'Render failed.' : 'Queued…';
+    document.getElementById('cancel-render-btn').style.display = item.status === 'error' ? 'none' : '';
   }
 }
 
@@ -801,7 +833,7 @@ if (state.length > 0) {
   // Prefetch heavy render assets during idle time so a later render is fast.
   const whenIdle = window.requestIdleCallback || (cb => setTimeout(cb, 200));
   whenIdle(() => {
-    for (const href of ['./openscad.js', './openscad.wasm', './openscad.fonts.js', './bosl2-bundle.js']) {
+    for (const href of ['./render-worker.js', './openscad.js', './openscad.wasm', './openscad.fonts.js', './bosl2-bundle.js']) {
       const link = document.createElement('link');
       link.rel = 'prefetch';
       link.href = href;
@@ -810,45 +842,14 @@ if (state.length > 0) {
   });
 }
 
-// ── WASM init ──────────────────────────────────────────────────────────────
-function ensureDir(FS, dir) {
-  if (dir === '' || dir === '/') return;
-  ensureDir(FS, dir.slice(0, dir.lastIndexOf('/')));
-  try { FS.mkdir(dir); } catch (e) { if (e.errno !== 20 /* EEXIST */) throw e; }
-}
-
 // ── Render queue ───────────────────────────────────────────────────────────
-// A fresh instance per item: this build aborts if callMain() runs twice on one instance.
-async function createInstance() {
-  const { OpenSCAD, addFonts } = await loadRenderDeps();
-  const inst = await OpenSCAD({ noInitialRun: true });
-  addFonts(inst);
-  for (const [path, content] of Object.entries(BOSL2_BUNDLE)) {
-    ensureDir(inst.FS, path.slice(0, path.lastIndexOf('/')));
-    inst.FS.writeFile(path, content);
-  }
-  return inst;
-}
-
+// Rendering happens off-thread in render-worker.js so the page stays responsive.
 async function renderItem(item) {
   item.status = 'rendering';
   if (state.indexOf(item) === activeIndex) selectItem(activeIndex);
   renderSidebar();
 
-  const inst = await createInstance();
-  const scad = await fetch(SCAD_BASE + item.component).then(r => {
-    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${item.component}`);
-    return r.text();
-  });
-
-  inst.FS.writeFile('/input.scad', scad);
-
-  const dFlags = Object.entries(item.params).flatMap(([k, v]) =>
-    ['-D', typeof v === 'string' ? `${k}="${v}"` : `${k}=${v}`]
-  );
-
-  inst.callMain(['/input.scad', '-o', '/output.stl', '--backend=manifold', '--export-format=binstl', ...dFlags]);
-  item.stlBytes = inst.FS.readFile('/output.stl');
+  item.stlBytes = await renderInWorker(item.component, item.params);
   item.status   = 'ready';
 }
 

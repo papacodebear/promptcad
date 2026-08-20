@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-WASM_BUILD_URL="https://files.openscad.org/playground/OpenSCAD-2025.03.25.wasm24456-WebAssembly-web.zip"
+WASM_BUILD_URL="https://files.openscad.org/snapshots/OpenSCAD-2026.08.19-WebAssembly-web.zip"
 curl -fsSL "$WASM_BUILD_URL" -o /tmp/openscad-wasm.zip
 unzip -o /tmp/openscad-wasm.zip -d underware
 
