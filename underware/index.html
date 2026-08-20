@@ -441,13 +441,36 @@
 <!-- Agent-readable: "loading" | "ready" | "partial" | "error" -->
 <div id="agent-status">loading</div>
 
-<script src="./bosl2-bundle.js"></script>
 <script type="module">
 import * as THREE            from 'three';
 import { STLLoader }         from 'three/addons/loaders/STLLoader.js';
 import { OrbitControls }     from 'three/addons/controls/OrbitControls.js';
-import OpenSCAD              from './openscad.js';
-import { addFonts }          from './openscad.fonts.js';
+
+// openscad.js, openscad.fonts.js and bosl2-bundle.js are multi-MB; loaded lazily so a
+// landing-page visit doesn't block on them.
+let bosl2LoadPromise = null;
+function loadBosl2Bundle() {
+  if (typeof BOSL2_BUNDLE !== 'undefined') return Promise.resolve();
+  if (!bosl2LoadPromise) {
+    bosl2LoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = './bosl2-bundle.js';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Failed to load bosl2-bundle.js'));
+      document.head.appendChild(script);
+    });
+  }
+  return bosl2LoadPromise;
+}
+
+async function loadRenderDeps() {
+  const [{ default: OpenSCAD }, { addFonts }] = await Promise.all([
+    import('./openscad.js'),
+    import('./openscad.fonts.js'),
+    loadBosl2Bundle(),
+  ]);
+  return { OpenSCAD, addFonts };
+}
 
 const SCAD_BASE = 'https://raw.githubusercontent.com/AndyLevesque/QuackWorks/refs/heads/main/Underware/';
 
@@ -681,11 +704,14 @@ function resizeRenderer() {
 window.addEventListener('resize', resizeRenderer);
 resizeRenderer();
 
-(function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-})();
+// Canvas stays hidden behind #empty-state when there's nothing to render.
+if (state.length > 0) {
+  (function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+}
 
 // ── STL preview ────────────────────────────────────────────────────────────
 const stlLoader = new STLLoader();
@@ -771,6 +797,17 @@ if (state.length > 0) {
   document.getElementById('bottom-bar').style.display = 'none';
   document.getElementById('nav-icons').style.display = 'none';
   document.getElementById('agent-status').textContent = 'no-params';
+
+  // Prefetch heavy render assets during idle time so a later render is fast.
+  const whenIdle = window.requestIdleCallback || (cb => setTimeout(cb, 200));
+  whenIdle(() => {
+    for (const href of ['./openscad.js', './openscad.wasm', './openscad.fonts.js', './bosl2-bundle.js']) {
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = href;
+      document.head.appendChild(link);
+    }
+  });
 }
 
 // ── WASM init ──────────────────────────────────────────────────────────────
@@ -783,6 +820,7 @@ function ensureDir(FS, dir) {
 // ── Render queue ───────────────────────────────────────────────────────────
 // A fresh instance per item: this build aborts if callMain() runs twice on one instance.
 async function createInstance() {
+  const { OpenSCAD, addFonts } = await loadRenderDeps();
   const inst = await OpenSCAD({ noInitialRun: true });
   addFonts(inst);
   for (const [path, content] of Object.entries(BOSL2_BUNDLE)) {
